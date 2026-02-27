@@ -1,0 +1,352 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="fas fa-user-plus"></i> Register New Student</h4>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <!-- Camera Preview -->
+                        <div class="camera-container mb-3">
+                            <video id="video" width="100%" height="auto" autoplay playsinline></video>
+                            <canvas id="canvas" style="display: none;"></canvas>
+
+                            <!-- Camera Overlay -->
+                            <div class="camera-overlay" id="cameraOverlay">
+                                <div class="face-guide"></div>
+                                <p class="text-white mt-2">Position face in the frame</p>
+                            </div>
+                        </div>
+
+                        <!-- Camera Controls -->
+                        <div class="d-flex justify-content-center gap-2 mb-3">
+                            <button type="button" class="btn btn-success" onclick="captureImage()" id="captureBtn">
+                                <i class="fas fa-camera"></i> Capture Photo
+                            </button>
+                            <button type="button" class="btn btn-info" onclick="retakePhoto()" id="retakeBtn" style="display: none;">
+                                <i class="fas fa-redo"></i> Retake
+                            </button>
+                        </div>
+
+                        <!-- Captured Image Preview -->
+                        <div id="capturedPreview" class="text-center mb-3" style="display: none;">
+                            <img id="capturedImage" class="img-fluid rounded" style="max-height: 200px;">
+                            <p class="text-success mt-2"><i class="fas fa-check-circle"></i> Face captured successfully!</p>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <!-- Registration Form -->
+                        <form method="POST" id="registerForm" enctype="multipart/form-data">
+                            <div class="mb-3">
+                                <label for="name" class="form-label">Full Name *</label>
+                                <input type="text" class="form-control" id="name" name="name" required
+                                       placeholder="Enter student's full name">
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="student_id" class="form-label">Student ID *</label>
+                                <input type="text" class="form-control" id="student_id" name="student_id" required
+                                       placeholder="e.g., STU001" pattern="[A-Za-z0-9]+"
+                                       title="Only letters and numbers allowed">
+                                <small class="text-muted">Unique identifier for the student</small>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="email" class="form-label">Email Address</label>
+                                <input type="email" class="form-control" id="email" name="email"
+                                       placeholder="student@example.com">
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="department" class="form-label">Department</label>
+                                    <select class="form-select" id="department" name="department">
+                                        <option value="">Select Department</option>
+                                        <option value="Computer Science">Computer Science</option>
+                                        <option value="Engineering">Engineering</option>
+                                        <option value="Business">Business</option>
+                                        <option value="Mathematics">Mathematics</option>
+                                        <option value="Physics">Physics</option>
+                                        <option value="Chemistry">Chemistry</option>
+                                        <option value="Biology">Biology</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+
+                                <div class="col-md-6 mb-3">
+                                    <label for="year" class="form-label">Year</label>
+                                    <select class="form-select" id="year" name="year">
+                                        <option value="">Select Year</option>
+                                        <option value="1">1st Year</option>
+                                        <option value="2">2nd Year</option>
+                                        <option value="3">3rd Year</option>
+                                        <option value="4">4th Year</option>
+                                        <option value="5">5th Year</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Hidden input for captured image data -->
+                            <input type="hidden" id="image_data" name="image_data">
+
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i>
+                                <strong>Instructions:</strong>
+                                <ul class="mb-0 mt-2">
+                                    <li>Ensure good lighting on your face</li>
+                                    <li>Remove glasses if possible</li>
+                                    <li>Look directly at the camera</li>
+                                    <li>Keep a neutral expression</li>
+                                </ul>
+                            </div>
+
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-primary btn-lg" id="submitBtn" disabled>
+                                    <i class="fas fa-save"></i> Register Student
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Registration Tips -->
+        <div class="card mt-3">
+            <div class="card-body">
+                <h5><i class="fas fa-lightbulb text-warning"></i> Registration Tips</h5>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            <i class="fas fa-sun fa-2x text-warning mb-2"></i>
+                            <h6>Good Lighting</h6>
+                            <small class="text-muted">Ensure face is well-lit</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            <i class="fas fa-user-circle fa-2x text-primary mb-2"></i>
+                            <h6>Clear View</h6>
+                            <small class="text-muted">Face should be clearly visible</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            <i class="fas fa-check-circle fa-2x text-success mb-2"></i>
+                            <h6>Single Person</h6>
+                            <small class="text-muted">Only one person in frame</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Camera setup
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const captureBtn = document.getElementById('captureBtn');
+const retakeBtn = document.getElementById('retakeBtn');
+const submitBtn = document.getElementById('submitBtn');
+const capturedPreview = document.getElementById('capturedPreview');
+const capturedImage = document.getElementById('capturedImage');
+const imageData = document.getElementById('image_data');
+let captured = false;
+
+// Initialize camera
+async function initCamera() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                width: { ideal: 640 },
+                height: { ideal: 480 },
+                facingMode: 'user'
+            }
+        });
+        video.srcObject = stream;
+    } catch (err) {
+        showNotification('Error accessing camera: ' + err.message, 'danger');
+        captureBtn.disabled = true;
+    }
+}
+
+// Capture image
+function captureImage() {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+
+    // Convert to data URL
+    const dataURL = canvas.toDataURL('image/jpeg');
+    capturedImage.src = dataURL;
+    imageData.value = dataURL;
+
+    // Update UI
+    capturedPreview.style.display = 'block';
+    captureBtn.style.display = 'none';
+    retakeBtn.style.display = 'inline-block';
+    submitBtn.disabled = false;
+
+    // Show success animation
+    showNotification('Face captured successfully!', 'success');
+}
+
+// Retake photo
+function retakePhoto() {
+    capturedPreview.style.display = 'none';
+    captureBtn.style.display = 'inline-block';
+    retakeBtn.style.display = 'none';
+    imageData.value = '';
+    submitBtn.disabled = true;
+}
+
+// Form submission
+document.getElementById('registerForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    if (!imageData.value) {
+        showNotification('Please capture a photo first!', 'warning');
+        return;
+    }
+
+    // Show loading
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Registering...';
+
+    try {
+        // Convert data URL to blob
+        const response = await fetch(imageData.value);
+        const blob = await response.blob();
+
+        // Create form data
+        const formData = new FormData();
+        formData.append('name', document.getElementById('name').value);
+        formData.append('student_id', document.getElementById('student_id').value);
+        formData.append('email', document.getElementById('email').value);
+        formData.append('department', document.getElementById('department').value);
+        formData.append('year', document.getElementById('year').value);
+        formData.append('image', blob, 'face.jpg');
+
+        // Send to server
+        const registerResponse = await fetch('/register', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (registerResponse.redirected) {
+            window.location.href = registerResponse.url;
+        } else {
+            const result = await registerResponse.json();
+            if (result.error) {
+                showNotification(result.error, 'danger');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-save"></i> Register Student';
+            }
+        }
+    } catch (error) {
+        showNotification('Error registering student: ' + error.message, 'danger');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-save"></i> Register Student';
+    }
+});
+
+// Show notification
+function showNotification(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 end-0 m-3`;
+    alertDiv.style.zIndex = '9999';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+
+    document.body.appendChild(alertDiv);
+
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+
+// Real-time validation
+document.getElementById('student_id').addEventListener('input', function(e) {
+    this.value = this.value.replace(/[^A-Za-z0-9]/g, '');
+});
+
+// Initialize on page load
+initCamera();
+</script>
+
+<style>
+.camera-container {
+    position: relative;
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+    aspect-ratio: 4/3;
+}
+
+.camera-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.face-guide {
+    width: 200px;
+    height: 200px;
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    border-radius: 50%;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.3);
+}
+
+#capturedImage {
+    border: 3px solid #28a745;
+    border-radius: 8px;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.alert ul {
+    margin-left: 20px;
+}
+
+.btn {
+    border-radius: 25px;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+#captureBtn:not(:disabled):hover {
+    animation: pulse 1s infinite;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .face-guide {
+        width: 150px;
+        height: 150px;
+    }
+}
+</style>
+{% endblock %}

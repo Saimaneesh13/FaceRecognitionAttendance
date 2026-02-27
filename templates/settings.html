@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="fas fa-cog"></i> System Settings</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="camera_id" class="form-label">Camera ID</label>
+                        <input type="number" class="form-control" id="camera_id" name="camera_id"
+                               value="{{ settings.get('camera_id', '0') }}" min="0" max="10">
+                        <small class="text-muted">0 = default camera, 1 = external camera</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="detection_threshold" class="form-label">Detection Threshold</label>
+                        <input type="number" class="form-control" id="detection_threshold" name="detection_threshold"
+                               value="{{ settings.get('detection_threshold', '0.6') }}" min="0.1" max="1.0" step="0.1">
+                        <small class="text-muted">Lower = more sensitive, Higher = more accurate</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="auto_mark" class="form-label">Auto Mark Attendance</label>
+                        <select class="form-select" id="auto_mark" name="auto_mark">
+                            <option value="true" {% if settings.get('auto_mark') == 'true' %}selected{% endif %}>Yes</option>
+                            <option value="false" {% if settings.get('auto_mark') == 'false' %}selected{% endif %}>No</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="attendance_window" class="form-label">Attendance Window (minutes)</label>
+                        <input type="number" class="form-control" id="attendance_window" name="attendance_window"
+                               value="{{ settings.get('attendance_window', '5') }}" min="1" max="60">
+                        <small class="text-muted">Time window to prevent duplicate attendance</small>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Save Settings
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+
+        <div class="card">
+
+            <div class="card-header bg-success text-white">
+                <h4 class="mb-0">
+                    <i class="fas fa-camera"></i> Mark Attendance
+                </h4>
+            </div>
+
+            <div class="card-body text-center">
+
+                <!-- Camera preview -->
+                <video id="video" width="100%" autoplay playsinline class="rounded"></video>
+
+                <canvas id="canvas" style="display:none;"></canvas>
+
+                <form method="POST" id="attendanceForm">
+
+                    <input type="hidden" name="image" id="imageInput">
+
+                    <br>
+
+                    <button type="button"
+                            onclick="captureAttendance()"
+                            class="btn btn-success btn-lg">
+
+                        <i class="fas fa-camera"></i>
+                        Capture & Mark Attendance
+
+                    </button>
+
+                </form>
+
+            </div>
+
+        </div>
+
+    </div>
+</div>
+
+
+<script>
+
+const video = document.getElementById("video");
+
+navigator.mediaDevices.getUserMedia({
+    video: true
+})
+.then(stream =>
+{
+    video.srcObject = stream;
+});
+
+
+function captureAttendance()
+{
+    const canvas = document.getElementById("canvas");
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    canvas.getContext("2d")
+          .drawImage(video,0,0);
+
+    const dataURL = canvas.toDataURL("image/jpeg");
+
+    fetch(dataURL)
+    .then(res => res.blob())
+    .then(blob =>
+    {
+        const formData = new FormData();
+
+        formData.append("image", blob, "attendance.jpg");
+
+        fetch("/attendance",
+        {
+            method:"POST",
+            body:formData
+        })
+        .then(() =>
+        {
+            location.reload();
+        });
+
+    });
+}
+
+</script>
+
+{% endblock %}

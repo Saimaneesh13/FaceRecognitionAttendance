@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h2><i class="fas fa-user-shield"></i> Admin Panel</h2>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-4 mb-4">
+        <div class="card text-white bg-primary">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Total Students</h6>
+                        <h2 class="mb-0">{{ total_students }}</h2>
+                    </div>
+                    <i class="fas fa-users fa-3x opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4 mb-4">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Total Attendance</h6>
+                        <h2 class="mb-0">{{ total_attendance }}</h2>
+                    </div>
+                    <i class="fas fa-calendar-check fa-3x opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4 mb-4">
+        <div class="card text-white bg-info">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Today's Attendance</h6>
+                        <h2 class="mb-0">{{ today_attendance }}</h2>
+                    </div>
+                    <i class="fas fa-clock fa-3x opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="/manage-students" class="btn btn-outline-primary">
+                        <i class="fas fa-users-cog"></i> Manage Students
+                    </a>
+                    <a href="/statistics" class="btn btn-outline-success">
+                        <i class="fas fa-chart-pie"></i> View Statistics
+                    </a>
+                    <a href="/export-excel" class="btn btn-outline-info">
+                        <i class="fas fa-file-excel"></i> Export to Excel
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">System Info</h5>
+            </div>
+            <div class="card-body">
+                <p><i class="fas fa-database"></i> Database: SQLite3</p>
+                <p><i class="fas fa-code"></i> Face Recognition: face_recognition library</p>
+                <p><i class="fas fa-calendar"></i> Current Date: {{ now().strftime('%Y-%m-%d') }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Add current date function for template
+    function now() {
+        return new Date();
+    }
+</script>
+{% endblock %}
