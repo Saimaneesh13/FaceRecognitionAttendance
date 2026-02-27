@@ -4,30 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="88afd91a-3c6f-412f-96c6-ab4c873ced04" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/FaceRecognitionAttendance.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/static/js/attendance.js" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/static/js/camera.js" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/static/js/utils.js" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/static/style.css" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/admin_login.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/admin_panel.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/attendance.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/base.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/dashboard.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/index.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/live_attendance.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/manage_students.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/register.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/settings.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/statistics.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/utils/face_utils.py" afterDir="false" />
+    <list default="true" id="88afd91a-3c6f-412f-96c6-ab4c873ced04" name="Changes" comment="Initial commit - Face Recognition Attendance System">
+      <change afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -44,6 +23,18 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "Saimaneesh13"
+  }
+}]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/Saimaneesh13/FaceRecognitionAttendance.git",
+    "accountId": "07e268d0-6892-4420-95eb-0078b14dc88e"
+  }
+}]]></component>
   <component name="McpProjectServerCommands">
     <commands />
     <urls />
@@ -128,8 +119,17 @@
       <workItem from="1772015959406" duration="1880000" />
       <workItem from="1772185723406" duration="268000" />
       <workItem from="1772186082471" duration="89000" />
-      <workItem from="1772186194058" duration="375000" />
+      <workItem from="1772186194058" duration="1342000" />
     </task>
+    <task id="LOCAL-00001" summary="Initial commit - Face Recognition Attendance System">
+      <option name="closed" value="true" />
+      <created>1772186774335</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1772186774335</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -145,6 +145,10 @@
         </entry>
       </map>
     </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="Initial commit - Face Recognition Attendance System" />
+    <option name="LAST_COMMIT_MESSAGE" value="Initial commit - Face Recognition Attendance System" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
