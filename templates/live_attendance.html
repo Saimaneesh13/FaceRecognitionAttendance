@@ -1,217 +1,145 @@
 {% extends "base.html" %}
 
+{% block title %}Live Stream Kiosk | VeriFace Attendance{% endblock %}
+{% block header_title %}Continuous Live Attendance Kiosk{% endblock %}
+{% block header_subtitle %}Real-time biometric scanning powered by /api/check-attendance{% endblock %}
+
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <h2><i class="fas fa-video"></i> Live Attendance Marking</h2>
-        <p class="text-muted">Real-time face detection and attendance marking</p>
-    </div>
-</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+    
+    <!-- Left 7 Cols: Live Kiosk Stream -->
+    <div class="lg:col-span-7 classic-card overflow-hidden flex flex-col justify-between">
+        <div class="p-4 bg-slate-900 text-white flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <span id="stream-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span class="font-mono text-xs uppercase tracking-wider">Live Kiosk Feed</span>
+            </div>
+            <span id="scan-state" class="text-xs font-mono text-emerald-300">Auto-Polling Active (Every 3s)</span>
+        </div>
 
-<div class="row mt-4">
-    <div class="col-md-8">
-        <div class="card">
-            <div class="card-header bg-primary text-white">
-                <h5 class="mb-0">Camera Feed</h5>
+        <div class="relative bg-slate-950 aspect-video flex items-center justify-center overflow-hidden">
+            <video id="live-video" autoplay playsinline class="w-full h-full object-cover"></video>
+            <canvas id="live-canvas" class="hidden"></canvas>
+            <div class="absolute inset-8 border border-emerald-400/40 rounded-2xl pointer-events-none"></div>
+        </div>
+
+        <div class="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+                <button type="button" onclick="scanFrameNow()" class="bg-royal hover:bg-blue-800 text-white text-xs font-semibold px-4 py-2.5 rounded-lg flex items-center gap-2">
+                    <i data-lucide="scan" class="w-4 h-4"></i>
+                    <span>Scan Frame Now</span>
+                </button>
+                <button type="button" id="toggle-auto-btn" onclick="toggleAutoScan()" class="bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-semibold px-4 py-2.5 rounded-lg">
+                    Pause Auto-Scan
+                </button>
             </div>
-            <div class="card-body text-center">
-                <div class="camera-container mb-3">
-                    <video id="video" width="100%" height="auto" autoplay playsinline></video>
-                    <canvas id="canvas" style="display: none;"></canvas>
-                </div>
-                <div class="d-flex justify-content-center gap-2">
-                    <button id="captureBtn" class="btn btn-success" onclick="captureAndMark()">
-                        <i class="fas fa-camera"></i> Capture & Mark
-                    </button>
-                    <button id="continuousBtn" class="btn btn-info" onclick="toggleContinuous()">
-                        <i class="fas fa-sync-alt"></i> Start Continuous
-                    </button>
-                </div>
-            </div>
+            <a href="{{ url_for('attendance') }}" class="text-xs font-semibold text-royal hover:underline">
+                Commit Attendance in Single-Capture &rarr;
+            </a>
         </div>
     </div>
 
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-header bg-success text-white">
-                <h5 class="mb-0">Today's Attendance</h5>
+    <!-- Right 5 Cols: Real-Time Recognition Log -->
+    <div class="lg:col-span-5 classic-card flex flex-col justify-between overflow-hidden">
+        <div>
+            <div class="p-4 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
+                <h3 class="font-serif font-bold text-sm text-slate-900">Live Recognition Detections</h3>
+                <span class="text-[11px] font-mono text-slate-400">Threshold &gt; 0.60</span>
             </div>
-            <div class="card-body">
-                <div id="attendanceList" class="attendance-list" style="max-height: 400px; overflow-y: auto;">
-                    <!-- Attendance records will appear here -->
-                    <div class="text-center text-muted py-3">
-                        <i class="fas fa-clock fa-3x mb-2"></i>
-                        <p>No attendance marked yet today</p>
-                    </div>
+
+            <div id="live-results-log" class="divide-y divide-slate-100 max-h-96 overflow-y-auto p-4 space-y-3">
+                <div class="text-center py-12 text-xs text-slate-400">
+                    Waiting for face detection frames...
                 </div>
             </div>
         </div>
 
-        <div class="card mt-3">
-            <div class="card-header bg-info text-white">
-                <h5 class="mb-0">Instructions</h5>
-            </div>
-            <div class="card-body">
-                <ul class="list-unstyled">
-                    <li><i class="fas fa-check-circle text-success"></i> Ensure good lighting</li>
-                    <li><i class="fas fa-check-circle text-success"></i> Look directly at camera</li>
-                    <li><i class="fas fa-check-circle text-success"></i> Remove glasses/hat if needed</li>
-                    <li><i class="fas fa-check-circle text-success"></i> Stay still during capture</li>
-                </ul>
-            </div>
+        <div class="p-4 bg-slate-50 border-t border-slate-200 text-[11px] text-slate-500">
+            Detections above 60% confidence are displayed immediately with their current daily status.
         </div>
     </div>
 </div>
+{% endblock %}
 
+{% block extra_scripts %}
 <script>
-// Camera setup
-const video = document.getElementById('video');
-const canvas = document.getElementById('canvas');
-let continuousMode = false;
-let intervalId = null;
+    const liveVideo = document.getElementById('live-video');
+    const liveCanvas = document.getElementById('live-canvas');
+    const resultsLog = document.getElementById('live-results-log');
+    const scanState = document.getElementById('scan-state');
+    const toggleBtn = document.getElementById('toggle-auto-btn');
+    let autoScanInterval = null;
+    let isAutoScanning = true;
 
-// Initialize camera
-async function initCamera() {
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-                width: { ideal: 640 },
-                height: { ideal: 480 },
-                facingMode: 'user'
-            }
-        });
-        video.srcObject = stream;
-    } catch (err) {
-        alert('Error accessing camera: ' + err.message);
-    }
-}
-
-// Capture frame and send to server
-async function captureAndMark() {
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext('2d').drawImage(video, 0, 0);
-
-    // Convert to blob
-    canvas.toBlob(async (blob) => {
-        const formData = new FormData();
-        formData.append('image', blob, 'capture.jpg');
-
+    async function startLiveStream() {
         try {
-            const response = await fetch('/api/check-attendance', {
-                method: 'POST',
-                body: formData
-            });
-
-            const data = await response.json();
-
-            if (data.error) {
-                showNotification(data.error, 'danger');
-            } else {
-                updateAttendanceList(data.results);
-            }
-        } catch (error) {
-            showNotification('Error processing image', 'danger');
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+            liveVideo.srcObject = stream;
+            autoScanInterval = setInterval(scanFrameNow, 3000);
+        } catch (err) {
+            scanState.textContent = "Camera Access Denied";
         }
-    }, 'image/jpeg');
-}
-
-// Toggle continuous mode
-function toggleContinuous() {
-    continuousMode = !continuousMode;
-    const btn = document.getElementById('continuousBtn');
-
-    if (continuousMode) {
-        btn.innerHTML = '<i class="fas fa-stop"></i> Stop Continuous';
-        btn.classList.remove('btn-info');
-        btn.classList.add('btn-danger');
-        intervalId = setInterval(captureAndMark, 3000); // Capture every 3 seconds
-    } else {
-        btn.innerHTML = '<i class="fas fa-sync-alt"></i> Start Continuous';
-        btn.classList.remove('btn-danger');
-        btn.classList.add('btn-info');
-        clearInterval(intervalId);
     }
-}
 
-// Update attendance list
-function updateAttendanceList(results) {
-    const list = document.getElementById('attendanceList');
-
-    results.forEach(result => {
-        const statusClass = result.status === 'new' ? 'success' : 'info';
-        const statusText = result.status === 'new' ? '✓ Marked' : '✓ Already Marked';
-
-        const item = document.createElement('div');
-        item.className = `alert alert-${statusClass} mb-2`;
-        item.innerHTML = `
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <strong>${result.name}</strong><br>
-                    <small>ID: ${result.student_id}</small>
-                </div>
-                <div class="text-end">
-                    <span class="badge bg-${statusClass}">${statusText}</span><br>
-                    <small>${new Date().toLocaleTimeString()}</small>
-                </div>
-            </div>
-        `;
-
-        list.insertBefore(item, list.firstChild);
-
-        // Keep only last 10 items
-        while (list.children.length > 10) {
-            list.removeChild(list.lastChild);
+    function toggleAutoScan() {
+        if (isAutoScanning) {
+            clearInterval(autoScanInterval);
+            isAutoScanning = false;
+            scanState.textContent = "Auto-Polling Paused";
+            toggleBtn.textContent = "Resume Auto-Scan";
+        } else {
+            autoScanInterval = setInterval(scanFrameNow, 3000);
+            isAutoScanning = true;
+            scanState.textContent = "Auto-Polling Active (Every 3s)";
+            toggleBtn.textContent = "Pause Auto-Scan";
         }
-    });
-}
+    }
 
-// Show notification
-function showNotification(message, type) {
-    const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
-    alertDiv.role = 'alert';
-    alertDiv.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
+    async function scanFrameNow() {
+        if (!liveVideo.srcObject) return;
+        liveCanvas.width = liveVideo.videoWidth || 640;
+        liveCanvas.height = liveVideo.videoHeight || 480;
+        liveCanvas.getContext('2d').drawImage(liveVideo, 0, 0, liveCanvas.width, liveCanvas.height);
 
-    document.querySelector('.container').insertBefore(alertDiv, document.querySelector('.container').firstChild);
+        liveCanvas.toBlob(async (blob) => {
+            const formData = new FormData();
+            formData.append('image', blob, 'frame.jpg');
 
-    // Auto dismiss after 5 seconds
-    setTimeout(() => {
-        alertDiv.remove();
-    }, 5000);
-}
+            try {
+                const res = await fetch("{{ url_for('check_attendance') }}", {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
 
-// Initialize on page load
-initCamera();
+                if (data.results && data.results.length > 0) {
+                    const timeNow = new Date().toLocaleTimeString();
+                    resultsLog.innerHTML = data.results.map(r => {
+                        const conf = Math.round((r.confidence || 0) * 100);
+                        const badgeClass = r.status === 'already_marked'
+                            ? 'bg-blue-50 text-blue-700 border-blue-200'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                        const statusLabel = r.status === 'already_marked' ? 'Already Marked Today' : 'Recognized (Ready)';
+                        return `
+                            <div class="p-3.5 rounded-xl border border-slate-200 bg-white flex items-center justify-between shadow-sm">
+                                <div>
+                                    <p class="text-sm font-bold text-slate-900">${r.name}</p>
+                                    <p class="text-xs font-mono text-slate-500">${r.student_id} • ${timeNow}</p>
+                                </div>
+                                <div class="text-right">
+                                    <span class="text-[11px] font-mono px-2.5 py-0.5 rounded border ${badgeClass}">${statusLabel}</span>
+                                    <span class="block text-xs font-mono text-slate-500 mt-1">Confidence: ${conf}%</span>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            } catch (err) {
+                console.error("Live check error:", err);
+            }
+        }, 'image/jpeg', 0.85);
+    }
+
+    document.addEventListener('DOMContentLoaded', startLiveStream);
 </script>
-
-<style>
-.camera-container {
-    background: #000;
-    border-radius: 8px;
-    overflow: hidden;
-    aspect-ratio: 4/3;
-}
-
-.attendance-list {
-    scrollbar-width: thin;
-    scrollbar-color: #888 #f1f1f1;
-}
-
-.attendance-list::-webkit-scrollbar {
-    width: 6px;
-}
-
-.attendance-list::-webkit-scrollbar-track {
-    background: #f1f1f1;
-}
-
-.attendance-list::-webkit-scrollbar-thumb {
-    background: #888;
-    border-radius: 3px;
-}
-</style>
 {% endblock %}

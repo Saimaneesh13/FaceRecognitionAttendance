@@ -20,13 +20,17 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.secret_key = os.urandom(24)  # Secure random key
+# Stable secret key so admin login survives Gunicorn worker restarts
+app.secret_key = os.environ.get("SECRET_KEY", "veriface-institutional-secret-key-2026")
 
-# Configuration
-DATABASE = "database.db"
-ENCODING_FILE = "encodings.pkl"
+# Configuration (Supports Render Persistent Disk if RENDER_DISK_PATH is set)
+DATA_DIR = os.environ.get("RENDER_DISK_PATH", ".")
+os.makedirs(DATA_DIR, exist_ok=True)
+
+DATABASE = os.path.join(DATA_DIR, "database.db")
+ENCODING_FILE = os.path.join(DATA_DIR, "encodings.pkl")
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
-UPLOAD_FOLDER = 'static/uploads'
+UPLOAD_FOLDER = os.path.join(DATA_DIR, 'static/uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # -----------------------
@@ -113,6 +117,18 @@ def init_db():
     conn.close()
     logger.info("Database initialized successfully")
 
+def get_setting(key, default=None):
+    """Helper to fetch a setting value from the database"""
+    try:
+        conn = sqlite3.connect(DATABASE)
+        c = conn.cursor()
+        c.execute("SELECT value FROM settings WHERE key=?", (key,))
+        row = c.fetchone()
+        conn.close()
+        return row[0] if row else default
+    except Exception:
+        return default
+
 # -----------------------
 # ENCODING MANAGEMENT
 # -----------------------
@@ -157,26 +173,23 @@ def login_required(f):
     return decorated_function
 
 # -----------------------
-# CAMERA FUNCTIONS
+# CAMERA & FACE FUNCTIONS
 # -----------------------
 def capture_face(camera_id=0, warmup_frames=10):
     """Capture face with camera warmup and error handling"""
     try:
-        # Use CAP_DSHOW for Windows compatibility
         cap = cv2.VideoCapture(camera_id, cv2.CAP_DSHOW)
 
         if not cap.isOpened():
             logger.error("Failed to open camera")
             return None, "Camera not accessible"
 
-        # Warmup camera
         for i in range(warmup_frames):
             ret, frame = cap.read()
             if not ret:
                 logger.warning(f"Frame {i} capture failed")
-            time.sleep(0.1)  # Small delay for camera adjustment
+            time.sleep(0.1)
 
-        # Capture final frame
         ret, frame = cap.read()
         cap.release()
 
@@ -197,18 +210,13 @@ def detect_faces(frame):
         return [], []
 
     try:
-        # Convert BGR to RGB
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-        # Detect face locations
         face_locations = face_recognition.face_locations(rgb)
 
         if not face_locations:
             return [], []
 
-        # Get encodings for detected faces
         face_encodings = face_recognition.face_encodings(rgb, face_locations)
-
         logger.info(f"Detected {len(face_locations)} faces")
         return face_locations, face_encodings
 
@@ -217,7 +225,7 @@ def detect_faces(frame):
         return [], []
 
 # -----------------------
-# ROUTES - ALL ROUTES MUST BE HERE (ABOVE MAIN)
+# ROUTES
 # -----------------------
 
 @app.route("/")
@@ -240,7 +248,6 @@ def admin_login():
         admin = c.fetchone()
 
         if admin:
-            # Update last login
             c.execute("UPDATE admin SET last_login=? WHERE username=?",
                      (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), username))
             conn.commit()
@@ -248,6 +255,7 @@ def admin_login():
             session['admin_logged_in'] = True
             session['admin_username'] = username
             flash(f'Welcome back, {username}!', 'success')
+            conn.close()
             return redirect(url_for('admin_panel'))
         else:
             flash('Invalid credentials!', 'danger')
@@ -269,7 +277,6 @@ def admin_panel():
     """Admin dashboard"""
     conn = sqlite3.connect(DATABASE)
 
-    # Statistics
     total_students = pd.read_sql_query("SELECT COUNT(*) as count FROM students", conn).iloc[0]['count']
     total_attendance = pd.read_sql_query("SELECT COUNT(*) as count FROM attendance", conn).iloc[0]['count']
 
@@ -279,7 +286,6 @@ def admin_panel():
         conn, params=[today]
     ).iloc[0]['count']
 
-    # Recent activity
     recent = pd.read_sql_query("""
         SELECT * FROM attendance 
         ORDER BY timestamp DESC LIMIT 10
@@ -314,24 +320,20 @@ def delete_student(student_id):
         conn = sqlite3.connect(DATABASE)
         c = conn.cursor()
 
-        # Get student name for message
         c.execute("SELECT name FROM students WHERE student_id=?", (student_id,))
         student = c.fetchone()
 
         if not student:
+            conn.close()
             flash('Student not found!', 'danger')
             return redirect(url_for('manage_students'))
 
-        # Delete from students table
         c.execute("DELETE FROM students WHERE student_id=?", (student_id,))
-
-        # Delete attendance records
         c.execute("DELETE FROM attendance WHERE student_id=?", (student_id,))
 
         conn.commit()
         conn.close()
 
-        # Remove from encodings
         data = load_encodings()
         if student_id in data['ids']:
             idx = data['ids'].index(student_id)
@@ -340,8 +342,7 @@ def delete_student(student_id):
             data['ids'].pop(idx)
             save_encodings(data)
 
-        # Delete face image
-        image_path = f"static/uploads/{student_id}.jpg"
+        image_path = os.path.join(UPLOAD_FOLDER, f"{student_id}.jpg")
         if os.path.exists(image_path):
             os.remove(image_path)
 
@@ -357,18 +358,16 @@ def delete_student(student_id):
 def register():
     """Register new student with face capture"""
     if request.method == "POST":
-        name = request.form["name"]
-        student_id = request.form["student_id"]
-        email = request.form.get("email", "")
-        department = request.form.get("department", "")
-        year = request.form.get("year", "")
+        name = request.form.get("name", "").strip()
+        student_id = request.form.get("student_id", "").strip()
+        email = request.form.get("email", "").strip()
+        department = request.form.get("department", "").strip()
+        year = request.form.get("year", "").strip()
 
-        # Validate inputs
         if not name or not student_id:
             flash('Name and Student ID are required!', 'danger')
             return redirect(url_for('register'))
 
-        # Check if student already exists
         conn = sqlite3.connect(DATABASE)
         c = conn.cursor()
         c.execute("SELECT * FROM students WHERE student_id=?", (student_id,))
@@ -377,38 +376,35 @@ def register():
             flash('Student ID already exists!', 'danger')
             return redirect(url_for('register'))
 
-        # Capture face with camera warmup
-        # Check if image file is received from browser
         if 'image' not in request.files:
+            conn.close()
             flash('No image received!', 'danger')
             return redirect(url_for('register'))
 
         file = request.files['image']
-
-        # Convert image to OpenCV format
         img_bytes = file.read()
         nparr = np.frombuffer(img_bytes, np.uint8)
         frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
         if frame is None:
+            conn.close()
             flash('Invalid image!', 'danger')
             return redirect(url_for('register'))
 
-        # Detect faces
         face_locations, face_encodings = detect_faces(frame)
 
         if len(face_locations) == 0:
+            conn.close()
             flash('No face detected! Please ensure good lighting and try again.', 'danger')
             return redirect(url_for('register'))
 
         if len(face_locations) > 1:
+            conn.close()
             flash('Multiple faces detected! Please ensure only one person in frame.', 'danger')
             return redirect(url_for('register'))
 
-        # Get the first face encoding
         encoding = face_encodings[0]
 
-        # Save to database
         registration_date = datetime.now().strftime("%Y-%m-%d")
         c.execute("""
         INSERT INTO students (name, student_id, email, department, year, registration_date)
@@ -417,18 +413,15 @@ def register():
         conn.commit()
         conn.close()
 
-        # Save encoding
         data = load_encodings()
         data["encodings"].append(encoding)
         data["names"].append(name)
         data["ids"].append(student_id)
         save_encodings(data)
 
-        # Save face image for reference
         top, right, bottom, left = face_locations[0]
-
         face_image = frame[top:bottom, left:right].copy()
-        cv2.imwrite(f"static/uploads/{student_id}.jpg", face_image)
+        cv2.imwrite(os.path.join(UPLOAD_FOLDER, f"{student_id}.jpg"), face_image)
 
         flash(f'✓ Student {name} registered successfully!', 'success')
         return redirect(url_for('index'))
@@ -445,34 +438,30 @@ def attendance():
             flash('No registered students found! Please register first.', 'warning')
             return redirect(url_for('register'))
 
-        # Receive image from browser camera
         if 'image' not in request.files:
             flash("No image received!", "danger")
             return redirect(url_for("attendance"))
 
         file = request.files['image']
-
         img_bytes = file.read()
-
         nparr = np.frombuffer(img_bytes, np.uint8)
-
         frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
         if frame is None:
             flash("Invalid image!", "danger")
             return redirect(url_for("attendance"))
-        # Detect faces
+
         face_locations, face_encodings = detect_faces(frame)
 
         if len(face_encodings) == 0:
             flash('No face detected! Please ensure good lighting and try again.', 'warning')
             return redirect(url_for('attendance'))
 
+        threshold = float(get_setting('detection_threshold', '0.6'))
         marked = False
         results = []
 
         for face_encoding in face_encodings:
-            # Compare with known faces
             matches = face_recognition.compare_faces(data["encodings"], face_encoding)
             face_distances = face_recognition.face_distance(data["encodings"], face_encoding)
 
@@ -480,7 +469,7 @@ def attendance():
                 best_match = np.argmin(face_distances)
                 confidence = 1 - face_distances[best_match]
 
-                if matches[best_match] and confidence > 0.6:  # Confidence threshold
+                if matches[best_match] and confidence > threshold:
                     name = data["names"][best_match]
                     student_id = data["ids"][best_match]
 
@@ -490,7 +479,6 @@ def attendance():
                     conn = sqlite3.connect(DATABASE)
                     c = conn.cursor()
 
-                    # Check if already marked today
                     c.execute("""
                     SELECT * FROM attendance 
                     WHERE student_id=? AND date=?
@@ -504,7 +492,6 @@ def attendance():
                         VALUES (?, ?, ?, ?, ?)
                         """, (student_id, name, date, time_str, float(confidence)))
 
-                        # Update student stats
                         c.execute("""
                         UPDATE students 
                         SET total_attendance = total_attendance + 1,
@@ -537,7 +524,6 @@ def dashboard():
     """View attendance dashboard"""
     conn = sqlite3.connect(DATABASE)
 
-    # Get attendance records with student details
     query = """
     SELECT a.*, s.department, s.year 
     FROM attendance a
@@ -548,7 +534,6 @@ def dashboard():
 
     df = pd.read_sql_query(query, conn)
 
-    # Get summary statistics
     today = datetime.now().strftime("%Y-%m-%d")
     today_count = len(df[df['date'] == today])
 
@@ -576,12 +561,10 @@ def export_excel():
         df = pd.read_sql_query(query, conn)
         conn.close()
 
-        # Create Excel file in memory
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df.to_excel(writer, sheet_name='Attendance', index=False)
 
-            # Auto-adjust column widths
             worksheet = writer.sheets['Attendance']
             for column in worksheet.columns:
                 max_length = 0
@@ -590,13 +573,12 @@ def export_excel():
                     try:
                         if len(str(cell.value)) > max_length:
                             max_length = len(str(cell.value))
-                    except:
+                    except Exception:
                         pass
                 adjusted_width = min(max_length + 2, 50)
                 worksheet.column_dimensions[column_letter].width = adjusted_width
 
         output.seek(0)
-
         filename = f"attendance_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
 
         return send_file(
@@ -617,7 +599,6 @@ def statistics():
     """View attendance statistics"""
     conn = sqlite3.connect(DATABASE)
 
-    # Daily attendance for last 30 days
     daily_query = """
     SELECT date, COUNT(*) as count
     FROM attendance
@@ -627,7 +608,6 @@ def statistics():
     """
     daily_stats = pd.read_sql_query(daily_query, conn).to_dict('records')
 
-    # Department-wise attendance
     dept_query = """
     SELECT s.department, COUNT(a.id) as attendance_count, COUNT(DISTINCT s.student_id) as student_count
     FROM students s
@@ -637,7 +617,6 @@ def statistics():
     """
     dept_stats = pd.read_sql_query(dept_query, conn).to_dict('records')
 
-    # Top students
     top_query = """
     SELECT s.name, s.student_id, COUNT(a.id) as attendance_count
     FROM students s
@@ -657,9 +636,11 @@ def statistics():
 
 @app.route("/api/check-attendance", methods=["POST"])
 def check_attendance():
-    """API endpoint for checking attendance"""
+    """API endpoint for checking & auto-marking attendance in Live Stream Kiosk"""
     try:
         data = load_encodings()
+        if len(data["encodings"]) == 0:
+            return jsonify({"results": [], "message": "No students enrolled"}), 200
 
         if 'image' not in request.files:
             return jsonify({"error": "No image provided"}), 400
@@ -668,7 +649,6 @@ def check_attendance():
         if file.filename == '':
             return jsonify({"error": "No image selected"}), 400
 
-        # Read and process image
         img_bytes = file.read()
         nparr = np.frombuffer(img_bytes, np.uint8)
         frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -676,11 +656,13 @@ def check_attendance():
         if frame is None:
             return jsonify({"error": "Invalid image"}), 400
 
-        # Detect faces
         face_locations, face_encodings = detect_faces(frame)
 
         if len(face_encodings) == 0:
-            return jsonify({"error": "No face detected"}), 400
+            return jsonify({"results": []}), 200
+
+        threshold = float(get_setting('detection_threshold', '0.6'))
+        auto_mark = get_setting('auto_mark', 'true') == 'true'
 
         results = []
         for face_encoding in face_encodings:
@@ -691,19 +673,34 @@ def check_attendance():
                 best_match = np.argmin(face_distances)
                 confidence = 1 - face_distances[best_match]
 
-                if matches[best_match] and confidence > 0.6:
+                if matches[best_match] and confidence > threshold:
                     name = data["names"][best_match]
                     student_id = data["ids"][best_match]
+                    today = datetime.now().strftime("%Y-%m-%d")
+                    time_str = datetime.now().strftime("%H:%M:%S")
 
-                    # Check if already marked today
                     conn = sqlite3.connect(DATABASE)
                     c = conn.cursor()
                     c.execute("""
                     SELECT * FROM attendance 
                     WHERE student_id=? AND date=?
-                    """, (student_id, datetime.now().strftime("%Y-%m-%d")))
+                    """, (student_id, today))
 
                     if not c.fetchone():
+                        if auto_mark:
+                            c.execute("""
+                            INSERT INTO attendance (student_id, name, date, time, confidence)
+                            VALUES (?, ?, ?, ?, ?)
+                            """, (student_id, name, today, time_str, float(confidence)))
+
+                            c.execute("""
+                            UPDATE students 
+                            SET total_attendance = total_attendance + 1,
+                                last_attendance = ?
+                            WHERE student_id=?
+                            """, (f"{today} {time_str}", student_id))
+                            conn.commit()
+
                         results.append({
                             "name": name,
                             "student_id": student_id,
@@ -738,7 +735,6 @@ def settings():
         conn = sqlite3.connect(DATABASE)
         c = conn.cursor()
 
-        # Update settings
         for key in ['camera_id', 'detection_threshold', 'auto_mark', 'attendance_window']:
             if key in request.form:
                 c.execute("""
@@ -751,7 +747,6 @@ def settings():
         flash('Settings updated successfully!', 'success')
         return redirect(url_for('settings'))
 
-    # Load current settings
     conn = sqlite3.connect(DATABASE)
     settings_data = pd.read_sql_query("SELECT * FROM settings", conn)
     conn.close()
@@ -760,7 +755,6 @@ def settings():
 
     return render_template("settings.html", settings=settings_dict)
 
-# ========== IMPORTANT: API ROUTE FOR STUDENT DETAILS ==========
 @app.route("/api/student/<student_id>")
 def get_student(student_id):
     """API endpoint to get student details"""
@@ -792,7 +786,6 @@ def get_student(student_id):
         logger.error(f"Error fetching student: {e}")
         return jsonify({'error': str(e)}), 500
 
-# ========== ADDITIONAL API ENDPOINTS ==========
 @app.route("/api/attendance/today")
 def api_today_attendance():
     """API endpoint to get today's attendance"""
@@ -853,20 +846,23 @@ def utility_processor():
     return dict(now=now)
 
 # -----------------------
-# MAIN - ALL ROUTES MUST BE ABOVE THIS LINE
+# MAIN
 # -----------------------
+init_db()
+
+if not os.path.exists(ENCODING_FILE):
+    save_encodings({"encodings": [], "names": [], "ids": []})
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 if __name__ == "__main__":
-    # Initialize database
     init_db()
 
-    # Create encodings file if not exists
     if not os.path.exists(ENCODING_FILE):
         save_encodings({"encodings": [], "names": [], "ids": []})
 
-    # Create upload folder
-    os.makedirs('static/uploads', exist_ok=True)
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-    # Run app
     logger.info("Starting Face Recognition Attendance System...")
     logger.info("Access the application at: http://127.0.0.1:5000")
     app.run(debug=True, host='0.0.0.0', port=5000, threaded=True)

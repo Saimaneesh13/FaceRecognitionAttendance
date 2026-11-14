@@ -1,95 +1,157 @@
 {% extends "base.html" %}
 
+{% block title %}Mark Attendance | VeriFace Attendance{% endblock %}
+{% block header_title %}Single-Capture Attendance Terminal{% endblock %}
+{% block header_subtitle %}Position your face inside the optical reticle or upload a photo to log daily presence{% endblock %}
+
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-6">
-
-        <div class="card">
-
-            <div class="card-header bg-success text-white">
-                <h4 class="mb-0">
-                    <i class="fas fa-camera"></i> Mark Attendance
-                </h4>
+<div class="max-w-4xl mx-auto">
+    <form id="attendance-form" action="{{ url_for('attendance') }}" method="POST" enctype="multipart/form-data" class="classic-card overflow-hidden">
+        
+        <!-- Top Status Bar -->
+        <div class="px-6 py-4 bg-slate-900 text-white flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-2.5">
+                <span id="cam-indicator" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span class="font-mono text-xs uppercase tracking-wider text-slate-300">Optical Biometric Verification</span>
             </div>
-
-            <div class="card-body text-center">
-
-                <!-- Camera preview -->
-                <video id="video" width="100%" autoplay playsinline class="rounded"></video>
-
-                <canvas id="canvas" style="display:none;"></canvas>
-
-                <form method="POST" id="attendanceForm">
-
-                    <input type="hidden" name="image" id="imageInput">
-
-                    <br>
-
-                    <button type="button"
-                            onclick="captureAttendance()"
-                            class="btn btn-success btn-lg">
-
-                        <i class="fas fa-camera"></i>
-                        Capture & Mark Attendance
-
-                    </button>
-
-                </form>
-
+            <div class="flex items-center gap-2">
+                <span id="att-status-badge" class="text-xs font-mono bg-blue-500/20 text-blue-300 border border-blue-400/30 px-3 py-1 rounded-full">
+                    Initializing Camera...
+                </span>
+                <button type="button" onclick="startAttendanceCam()" class="text-xs font-mono bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1 rounded border border-slate-700 transition-colors">
+                    Retry Cam
+                </button>
             </div>
-
         </div>
 
-    </div>
+        <div class="p-6 lg:p-8 grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
+            <!-- Left 7 Cols: Video Feed & File Preview -->
+            <div class="md:col-span-7 space-y-4">
+                <div class="relative rounded-xl overflow-hidden bg-slate-950 aspect-[4/3] border border-slate-800 shadow-inner flex items-center justify-center">
+                    <video id="att-video" autoplay playsinline muted class="w-full h-full object-cover"></video>
+                    <img id="att-preview" class="hidden w-full h-full object-cover" alt="Attendance Snapshot">
+                    <canvas id="att-canvas" class="hidden"></canvas>
+
+                    <!-- Target Overlay -->
+                    <div class="absolute inset-8 border border-blue-400/30 rounded-2xl pointer-events-none flex items-center justify-center">
+                        <div class="w-44 h-52 border-2 border-emerald-400/70 rounded-full shadow-[0_0_25px_rgba(16,185,129,0.2)]"></div>
+                    </div>
+                </div>
+
+                <!-- Fallback file input populated by webcam or manual file pick -->
+                <div class="flex items-center justify-between text-xs text-slate-500 pt-1">
+                    <span class="font-medium text-slate-600">Fallback image upload:</span>
+                    <input type="file" id="att-file-input" name="image" accept="image/jpeg,image/png" required
+                           onchange="previewAttendanceFile(this)"
+                           class="text-xs text-slate-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-royal hover:file:bg-blue-100 cursor-pointer">
+                </div>
+            </div>
+
+            <!-- Right 5 Cols: Action Controls -->
+            <div class="md:col-span-5 space-y-5">
+                <div>
+                    <h3 class="font-serif font-bold text-lg text-slate-900">Instant Presence Logging</h3>
+                    <p id="cam-help-text" class="text-xs text-slate-500 mt-1 leading-relaxed">
+                        Clicking <strong>Capture &amp; Verify Now</strong> snaps a frame from your live webcam, or submits your selected image file if the camera is offline.
+                    </p>
+                </div>
+
+                <div class="space-y-3">
+                    <button type="button" onclick="snapAndSubmitAttendance()"
+                            class="w-full flex items-center justify-center gap-2.5 bg-royal hover:bg-blue-800 text-white font-semibold text-sm py-3.5 px-5 rounded-xl shadow-sm transition-all">
+                        <i data-lucide="scan-face" class="w-5 h-5"></i>
+                        <span>Capture &amp; Verify Now</span>
+                    </button>
+
+                    <button type="submit"
+                            class="w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs py-3 px-4 rounded-xl transition-all">
+                        <i data-lucide="upload" class="w-4 h-4"></i>
+                        <span>Submit Uploaded Image File</span>
+                    </button>
+                </div>
+
+                <div class="pt-4 border-t border-slate-200 flex items-center justify-between text-xs">
+                    <span class="text-slate-500">Prefer hands-free scanning?</span>
+                    <a href="{{ url_for('live_attendance') }}" class="font-semibold text-royal hover:underline">Switch to Live Stream &rarr;</a>
+                </div>
+            </div>
+        </div>
+    </form>
 </div>
+{% endblock %}
 
-
+{% block extra_scripts %}
 <script>
+    const attVideo = document.getElementById('att-video');
+    const attCanvas = document.getElementById('att-canvas');
+    const attPreview = document.getElementById('att-preview');
+    const attFileInput = document.getElementById('att-file-input');
+    const attForm = document.getElementById('attendance-form');
+    const attBadge = document.getElementById('att-status-badge');
+    const camIndicator = document.getElementById('cam-indicator');
+    const camHelpText = document.getElementById('cam-help-text');
 
-const video = document.getElementById("video");
+    async function startAttendanceCam() {
+        try {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                throw new Error("Browser blocked camera API. Open via http://127.0.0.1:5000");
+            }
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            attVideo.srcObject = stream;
+            attVideo.classList.remove('hidden');
+            attPreview.classList.add('hidden');
+            attBadge.textContent = "Camera Ready";
+            attBadge.className = "text-xs font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-3 py-1 rounded-full";
+            camIndicator.className = "w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse";
+        } catch (err) {
+            console.warn("Webcam Error:", err);
+            attBadge.textContent = "Camera Offline - Upload File";
+            attBadge.className = "text-xs font-mono bg-amber-500/20 text-amber-300 border border-amber-400/30 px-3 py-1 rounded-full";
+            camIndicator.className = "w-2.5 h-2.5 rounded-full bg-amber-400";
+            camHelpText.innerHTML = "<strong>Camera Notice:</strong> Ensure you are using <code>http://127.0.0.1:5000</code> in Chrome/Edge and camera permissions are allowed, or select an image file below.";
+        }
+    }
 
-navigator.mediaDevices.getUserMedia({
-    video: true
-})
-.then(stream =>
-{
-    video.srcObject = stream;
-});
+    function previewAttendanceFile(input) {
+        if (input.files && input.files[0]) {
+            attPreview.src = URL.createObjectURL(input.files[0]);
+            attVideo.classList.add('hidden');
+            attPreview.classList.remove('hidden');
+            attBadge.textContent = "Image File Loaded ✓";
+            attBadge.className = "text-xs font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-3 py-1 rounded-full";
+        }
+    }
 
+    function snapAndSubmitAttendance() {
+        // If camera is offline but user already chose a file, submit that file directly!
+        if (!attVideo.srcObject) {
+            if (attFileInput.files && attFileInput.files.length > 0) {
+                attBadge.textContent = "Verifying Uploaded Image...";
+                attForm.submit();
+                return;
+            }
+            return alert("Camera is offline. Please choose an image file below first, then click Verify.");
+        }
 
-function captureAttendance()
-{
-    const canvas = document.getElementById("canvas");
+        attCanvas.width = attVideo.videoWidth || 640;
+        attCanvas.height = attVideo.videoHeight || 480;
+        attCanvas.getContext('2d').drawImage(attVideo, 0, 0, attCanvas.width, attCanvas.height);
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+        attCanvas.toBlob(blob => {
+            const file = new File([blob], "attendance_snap.jpg", { type: "image/jpeg" });
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            attFileInput.files = dt.files;
 
-    canvas.getContext("2d")
-          .drawImage(video,0,0);
+            attPreview.src = URL.createObjectURL(blob);
+            attVideo.classList.add('hidden');
+            attPreview.classList.remove('hidden');
+            attBadge.textContent = "Verifying Encoding...";
 
-    const dataURL = canvas.toDataURL("image/jpeg");
+            attForm.submit();
+        }, 'image/jpeg', 0.92);
+    }
 
-    fetch(dataURL)
-    .then(res => res.blob())
-    .then(blob =>
-    {
-        const formData = new FormData();
-
-        formData.append("image", blob, "attendance.jpg");
-
-        fetch("/attendance",
-        {
-            method:"POST",
-            body:formData
-        })
-        .then(() =>
-        {
-            location.reload();
-        });
-
-    });
-}
-
+    document.addEventListener('DOMContentLoaded', startAttendanceCam);
 </script>
-
 {% endblock %}

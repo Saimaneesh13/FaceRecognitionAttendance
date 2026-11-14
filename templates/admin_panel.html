@@ -1,98 +1,73 @@
 {% extends "base.html" %}
 
+{% block title %}Admin Console | VeriFace Attendance{% endblock %}
+{% block header_title %}Executive Administration Console{% endblock %}
+{% block header_subtitle %}System-wide metrics, student directory controls, and recent biometric activity{% endblock %}
+
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12">
-        <h2><i class="fas fa-user-shield"></i> Admin Panel</h2>
-    </div>
-</div>
+<div class="space-y-8">
 
-<div class="row">
-    <div class="col-md-4 mb-4">
-        <div class="card text-white bg-primary">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h6 class="card-title">Total Students</h6>
-                        <h2 class="mb-0">{{ total_students }}</h2>
-                    </div>
-                    <i class="fas fa-users fa-3x opacity-50"></i>
-                </div>
-            </div>
+    <!-- KPI Row -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
+        <div class="classic-card p-6">
+            <span class="text-xs font-mono uppercase text-slate-400">Registered Students</span>
+            <p class="font-serif text-3xl font-bold text-slate-900 mt-2">{{ total_students }}</p>
+            <a href="{{ url_for('manage_students') }}" class="text-xs font-semibold text-royal hover:underline mt-2 inline-block">Manage Directory &rarr;</a>
+        </div>
+
+        <div class="classic-card p-6">
+            <span class="text-xs font-mono uppercase text-slate-400">Today's Verified Attendance</span>
+            <p class="font-serif text-3xl font-bold text-emerald-700 mt-2">{{ today_attendance }}</p>
+            <a href="{{ url_for('dashboard') }}" class="text-xs font-semibold text-emerald-700 hover:underline mt-2 inline-block">Inspect Today's Logs &rarr;</a>
+        </div>
+
+        <div class="classic-card p-6">
+            <span class="text-xs font-mono uppercase text-slate-400">Total Historical Records</span>
+            <p class="font-serif text-3xl font-bold text-slate-900 mt-2">{{ total_attendance }}</p>
+            <a href="{{ url_for('export_excel') }}" class="text-xs font-semibold text-royal hover:underline mt-2 inline-block">Export Excel Workbook &rarr;</a>
         </div>
     </div>
 
-    <div class="col-md-4 mb-4">
-        <div class="card text-white bg-success">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h6 class="card-title">Total Attendance</h6>
-                        <h2 class="mb-0">{{ total_attendance }}</h2>
-                    </div>
-                    <i class="fas fa-calendar-check fa-3x opacity-50"></i>
-                </div>
+    <!-- Recent Activity Table -->
+    <div class="classic-card overflow-hidden">
+        <div class="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/60">
+            <h3 class="font-serif font-bold text-sm text-slate-900">Latest 10 Biometric Verifications</h3>
+            <div class="flex items-center gap-3">
+                <a href="{{ url_for('statistics') }}" class="text-xs font-semibold text-royal hover:underline">View Analytics</a>
+                <a href="{{ url_for('settings') }}" class="text-xs font-semibold text-slate-600 hover:text-slate-900">Settings</a>
             </div>
         </div>
-    </div>
 
-    <div class="col-md-4 mb-4">
-        <div class="card text-white bg-info">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h6 class="card-title">Today's Attendance</h6>
-                        <h2 class="mb-0">{{ today_attendance }}</h2>
-                    </div>
-                    <i class="fas fa-clock fa-3x opacity-50"></i>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="row mt-4">
-    <div class="col-md-6 mb-4">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">Quick Actions</h5>
-            </div>
-            <div class="card-body">
-                <div class="d-grid gap-2">
-                    <a href="/manage-students" class="btn btn-outline-primary">
-                        <i class="fas fa-users-cog"></i> Manage Students
-                    </a>
-                    <a href="/statistics" class="btn btn-outline-success">
-                        <i class="fas fa-chart-pie"></i> View Statistics
-                    </a>
-                    <a href="/export-excel" class="btn btn-outline-info">
-                        <i class="fas fa-file-excel"></i> Export to Excel
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-6 mb-4">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">System Info</h5>
-            </div>
-            <div class="card-body">
-                <p><i class="fas fa-database"></i> Database: SQLite3</p>
-                <p><i class="fas fa-code"></i> Face Recognition: face_recognition library</p>
-                <p><i class="fas fa-calendar"></i> Current Date: {{ now().strftime('%Y-%m-%d') }}</p>
-            </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="border-b border-slate-200 bg-slate-50 text-[11px] font-mono uppercase text-slate-500">
+                        <th class="py-3 px-4">Student</th>
+                        <th class="py-3 px-4">ID</th>
+                        <th class="py-3 px-4">Date</th>
+                        <th class="py-3 px-4">Time</th>
+                        <th class="py-3 px-4">Confidence</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 text-xs">
+                    {% for item in recent %}
+                    <tr class="hover:bg-slate-50">
+                        <td class="py-3 px-4 font-semibold text-slate-900">{{ item.name }}</td>
+                        <td class="py-3 px-4 font-mono text-slate-600">{{ item.student_id }}</td>
+                        <td class="py-3 px-4 font-mono text-slate-600">{{ item.date }}</td>
+                        <td class="py-3 px-4 font-mono text-slate-600">{{ item.time }}</td>
+                        <td class="py-3 px-4 font-mono text-emerald-700">
+                            {% if item.confidence %}{{ "%.1f"|format(item.confidence * 100) }}%{% else %}Verified{% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="py-8 text-center text-slate-400">No recent activity found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-    // Add current date function for template
-    function now() {
-        return new Date();
-    }
-</script>
 {% endblock %}

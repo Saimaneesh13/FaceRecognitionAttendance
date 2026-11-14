@@ -1,93 +1,96 @@
 {% extends "base.html" %}
 
+{% block title %}Attendance Ledger | VeriFace Attendance{% endblock %}
+{% block header_title %}Institutional Attendance Ledger{% endblock %}
+{% block header_subtitle %}Verified presence logs with biometric confidence metrics{% endblock %}
+
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12">
-        <h2><i class="fas fa-chart-line"></i> Attendance Dashboard</h2>
-        <p class="text-muted">Total Records: {{ total_records }}</p>
+<div class="space-y-6">
+
+    <!-- Summary Bar -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="classic-card p-5">
+            <span class="text-xs font-mono uppercase text-slate-400">Today's Verified Count</span>
+            <p class="font-serif text-2xl font-bold text-emerald-700 mt-1">{{ today_count }}</p>
+        </div>
+        <div class="classic-card p-5">
+            <span class="text-xs font-mono uppercase text-slate-400">Displayed Ledger Records</span>
+            <p class="font-serif text-2xl font-bold text-slate-900 mt-1">{{ total_records }}</p>
+        </div>
+        <div class="classic-card p-5 flex items-center justify-between">
+            <div>
+                <span class="text-xs font-mono uppercase text-slate-400 block">Spreadsheet Export</span>
+                <span class="text-xs text-slate-500">Download full `.xlsx` report</span>
+            </div>
+            <a href="{{ url_for('export_excel') }}" class="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition-all">
+                <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+                <span>Export Excel</span>
+            </a>
+        </div>
     </div>
-</div>
 
-<div class="row">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <ul class="nav nav-tabs card-header-tabs">
-                    <li class="nav-item">
-                        <a class="nav-link active" href="#all" data-bs-toggle="tab">All Records</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#today" data-bs-toggle="tab">Today</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#week" data-bs-toggle="tab">This Week</a>
-                    </li>
-                </ul>
-            </div>
-            <div class="card-body">
-                <div class="tab-content">
-                    <div class="tab-pane active" id="all">
-                        <div class="table-responsive">
-                            <table class="table table-striped table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Date</th>
-                                        <th>Time</th>
-                                        <th>Name</th>
-                                        <th>Student ID</th>
-                                        <th>Department</th>
-                                        <th>Year</th>
-                                        <th>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for record in records %}
-                                    <tr>
-                                        <td>{{ record.date }}</td>
-                                        <td>{{ record.time }}</td>
-                                        <td>{{ record.name }}</td>
-                                        <td>{{ record.student_id }}</td>
-                                        <td>{{ record.department or 'N/A' }}</td>
-                                        <td>{{ record.year or 'N/A' }}</td>
-                                        <td><span class="badge bg-success">Present</span></td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+    <!-- Filter & Ledger Table -->
+    <div class="classic-card overflow-hidden">
+        <div class="p-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-4 bg-slate-50/50">
+            <h3 class="font-serif font-bold text-sm text-slate-900">Recent Verification Logs (Last 100)</h3>
+            <input type="text" id="ledger-search" onkeyup="filterLedgerTable()" placeholder="Search student name, ID, or department..."
+                   class="w-full sm:w-72 px-3.5 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:border-royal outline-none">
+        </div>
 
-                    <div class="tab-pane" id="today">
-                        <div class="table-responsive">
-                            <table class="table table-striped">
-                                <thead>
-                                    <tr>
-                                        <th>Time</th>
-                                        <th>Name</th>
-                                        <th>Student ID</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for record in records %}
-                                    {% if record.date == now().strftime('%Y-%m-%d') %}
-                                    <tr>
-                                        <td>{{ record.time }}</td>
-                                        <td>{{ record.name }}</td>
-                                        <td>{{ record.student_id }}</td>
-                                    </tr>
-                                    {% endif %}
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <div class="tab-pane" id="week">
-                        <!-- Similar structure for weekly view -->
-                    </div>
-                </div>
-            </div>
+        <div class="overflow-x-auto">
+            <table id="ledger-table" class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="border-b border-slate-200 bg-slate-50 text-[11px] font-mono uppercase text-slate-500">
+                        <th class="py-3.5 px-4">Student Name</th>
+                        <th class="py-3.5 px-4">Student ID</th>
+                        <th class="py-3.5 px-4">Department</th>
+                        <th class="py-3.5 px-4">Date</th>
+                        <th class="py-3.5 px-4">Time</th>
+                        <th class="py-3.5 px-4">Confidence</th>
+                        <th class="py-3.5 px-4">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 text-xs">
+                    {% for r in records %}
+                    <tr class="hover:bg-slate-50/80 transition-colors">
+                        <td class="py-3.5 px-4 font-semibold text-slate-900">{{ r.name }}</td>
+                        <td class="py-3.5 px-4 font-mono text-slate-600">{{ r.student_id }}</td>
+                        <td class="py-3.5 px-4 text-slate-600">{{ r.department or 'General' }} {% if r.year %}(Yr {{ r.year }}){% endif %}</td>
+                        <td class="py-3.5 px-4 font-mono text-slate-600">{{ r.date }}</td>
+                        <td class="py-3.5 px-4 font-mono text-slate-600">{{ r.time }}</td>
+                        <td class="py-3.5 px-4 font-mono">
+                            {% if r.confidence %}
+                                {{ "%.1f"|format(r.confidence * 100) }}%
+                            {% else %}
+                                Verified
+                            {% endif %}
+                        </td>
+                        <td class="py-3.5 px-4">
+                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                {{ r.status or 'Present' }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="py-12 text-center text-slate-400">No attendance records logged yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    function filterLedgerTable() {
+        const q = document.getElementById('ledger-search').value.toLowerCase();
+        const rows = document.querySelectorAll('#ledger-table tbody tr');
+        rows.forEach(row => {
+            row.style.display = row.innerText.toLowerCase().includes(q) ? '' : 'none';
+        });
+    }
+</script>
 {% endblock %}
